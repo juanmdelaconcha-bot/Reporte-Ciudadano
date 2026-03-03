@@ -1,1 +1,132 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>GeoAlert Móvil</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+    <style>
+        :root { --primary: #d32f2f; --dark: #212121; }
+        body { font-family: sans-serif; margin: 0; background: #eee; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        
+        /* Aseguramos que el mapa ocupe el espacio */
+        #map { flex: 1; width: 100%; min-height: 50vh; background: #ddd; }
+        
+        .mobile-panel { padding: 15px; background: white; border-radius: 20px 20px 0 0; box-shadow: 0 -5px 15px rgba(0,0,0,0.2); z-index: 1000; }
+        .btn-capture { background: #444; color: white; padding: 12px; text-align: center; border-radius: 8px; margin-bottom: 10px; display: block; cursor: pointer; }
+        button.send { background: var(--primary); color: white; border: none; width: 100%; padding: 15px; border-radius: 8px; font-size: 18px; font-weight: bold; }
+        input[type="file"] { display: none; }
+        .preview-img { width: 100%; max-height: 100px; object-fit: cover; border-radius: 8px; margin: 5px 0; display: none; }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div class="mobile-panel">
+    <label class="btn-capture">
+        📷 Tomar Foto del Suceso
+        <input type="file" id="fotoInput" accept="image/*" capture="environment" onchange="previewFoto(this)">
+    </label>
+    <img id="imgPreview" class="preview-img">
+    
+    <select id="tipoDelito" style="width:100%; padding: 12px; margin-bottom: 10px; border-radius: 8px;">
+        <option value="Asalto">Asalto</option>
+        <option value="Robo de Vehículo">Robo de Vehículo</option>
+        <option value="Vandalismo">Vandalismo</option>
+    </select>
+    
+    <button class="send" onclick="subirReporteCompleto()">Enviar Reporte</button>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, Timestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
+
+    // RECUERDA COMPLETAR ESTO
+    const firebaseConfig = { 
+        apiKey: "TU_API_KEY",
+        authDomain: "TU_DOMINIO",
+        projectId: "TU_PROJECT_ID",
+        storageBucket: "TU_BUCKET",
+        messagingSenderId: "TU_ID",
+        appId: "TU_APP_ID"
+    };
+    
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
+
+    // Inicializar mapa (Ya funciona porque Leaflet se cargó en el head)
+    let map = L.map('map', { zoomControl: false }).setView([0,0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    let userCoords = null;
+    let userMarker = L.marker([0,0]).addTo(map);
+
+    navigator.geolocation.watchPosition(pos => {
+        userCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        const latlng = [userCoords.lat, userCoords.lng];
+        userMarker.setLatLng(latlng);
+        map.setView(latlng, 16);
+    }, err => {
+        alert("Por favor activa el GPS para que el mapa funcione.");
+    }, { enableHighAccuracy: true });
+
+    // Funciones globales
+    window.previewFoto = (input) => {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                const img = document.getElementById('imgPreview');
+                img.src = e.target.result;
+                img.style.display = 'block';
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    };
+
+    window.subirReporteCompleto = async () => {
+        if (!userCoords) return alert("Esperando señal GPS...");
+        const file = document.getElementById('fotoInput').files[0];
+        let fotoUrl = "";
+
+        try {
+            if (file) {
+                const storageRef = ref(storage, `denuncias/${Date.now()}_${file.name}`);
+                const snapshot = await uploadBytes(storageRef, file);
+                fotoUrl = await getDownloadURL(snapshot.ref);
+            }
+
+            await addDoc(collection(db, "denuncias"), {
+                tipo: document.getElementById('tipoDelito').value,
+                lat: userCoords.lat,
+                lng: userCoords.lng,
+                foto: fotoUrl,
+                fecha: Timestamp.now()
+            });
+
+            alert("¡Denuncia enviada con éxito!");
+            location.reload();
+        } catch (e) {
+            alert("Error: " + e.message);
+        }
+    };
+</script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log(err));
+    });
+  }
+</script>
+
+</body>
+</html>
