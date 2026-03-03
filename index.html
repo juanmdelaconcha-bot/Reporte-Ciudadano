@@ -15,6 +15,15 @@
         input[type="file"] { display: none; } /* Escondemos el input feo */
         .preview-img { width: 100%; max-height: 100px; object-fit: cover; border-radius: 8px; margin: 5px 0; display: none; }
     </style>
+    <link rel="manifest" href="/manifest.json">
+
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GeoAlert">
+<link rel="apple-touch-icon" href="icon-192.png">
+
+<meta name="theme-color" content="#d32f2f">
+
 </head>
 <body>
 
@@ -105,4 +114,13 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </body>
+    // Registrar el Service Worker para habilitar la instalación PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(reg => console.log('Service Worker registrado', reg))
+      .catch(err => console.log('Error al registrar SW', err));
+  });
+}
+
 </html>
